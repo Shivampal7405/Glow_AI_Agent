@@ -35,6 +35,7 @@ class CommandWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
+
 class VoiceWorker(QThread):
     """Worker thread for voice recording and transcription"""
     finished = pyqtSignal(str)
@@ -132,7 +133,7 @@ class GlowApp(QMainWindow):
 
     def _init_glow(self):
         """Initialize GLOW components"""
-        print("Initializing GLOW v1.0.5 (Patched with Argument Aliasing)...")
+        print("Initializing GLOW v1.0.5...")
 
         # Initialize planner
         model_name = self.config.get('conversational_model', '')
@@ -189,23 +190,10 @@ class GlowApp(QMainWindow):
             tool_registry=TOOL_REGISTRY
         )
 
-        # Initialize GLOW orb interface
-        try:
-            from body.glow_orb import GlowOrb
-            self.orb = GlowOrb(size=300)
-
-            # Connect Orb Signals
-            self.orb.settings_clicked.connect(self._show_settings)
-            self.orb.close_clicked.connect(self.close)
-            self.orb.text_entered.connect(self.process_command)
-            self.orb.voice_toggled.connect(self.toggle_voice_input)
-
-            self.orb.show()
-            self.orb.set_state_idle()
-            print("GLOW orb initialized")
-        except Exception as e:
-            print(f"Orb not available: {e}")
-            self.orb = None
+        # Worker threads
+        self.voice_worker = None
+        self.speak_worker = None
+        self.wake_worker = None
 
         # Voice components
         self.tts = None
@@ -236,10 +224,23 @@ class GlowApp(QMainWindow):
             except Exception as e:
                 print(f"Wake word not available: {e}")
 
-        # Worker threads
-        self.voice_worker = None
-        self.speak_worker = None
-        self.wake_worker = None
+        # Initialize GLOW orb interface
+        try:
+            from body.glow_orb import GlowOrb
+            self.orb = GlowOrb(size=300)
+
+            # Connect Orb Signals
+            self.orb.settings_clicked.connect(self._show_settings)
+            self.orb.close_clicked.connect(self.close)
+            self.orb.text_entered.connect(self.process_command)
+            self.orb.voice_toggled.connect(self.toggle_voice_input)
+
+            self.orb.show()
+            self.orb.set_state_idle()
+            print("GLOW orb initialized")
+        except Exception as e:
+            print(f"Orb not available: {e}")
+            self.orb = None
 
         print("GLOW ready!")
 
@@ -619,27 +620,9 @@ class GlowApp(QMainWindow):
         </div>"""
         self.append_message("System", status)
 
-    def closeEvent(self, event):
-        """Handle window close"""
-        if self.orb:
-            self.orb.close()
-        event.accept()
-
-
-def main():
-    """Main entry point"""
-    app = QApplication(sys.argv)
-    app.setStyle('Fusion')  # Modern style
-
-    # Set application-wide font
-    app.setFont(QFont("Segoe UI", 10))
-
-    # Initialize app but don't show the main window
-    # The Orb will be shown by GlowApp._init_glow
-    window = GlowApp()
-
-    sys.exit(app.exec())
-
 
 if __name__ == "__main__":
-    main()
+    app = QApplication(sys.argv)
+    window = GlowApp()
+    # The window is hidden, but the orb is shown inside __init__
+    sys.exit(app.exec())

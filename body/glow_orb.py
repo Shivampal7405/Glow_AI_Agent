@@ -5,7 +5,7 @@ Beautiful glowing orb with plasma effects
 """
 
 import math
-from PyQt6.QtWidgets import QWidget, QLineEdit, QPushButton
+from PyQt6.QtWidgets import QWidget, QLineEdit, QPushButton, QLabel
 from PyQt6.QtCore import Qt, QTimer, QPointF, pyqtSignal
 from PyQt6.QtGui import (
     QPainter, QRadialGradient, QColor, QBrush, QPainterPath, QCursor, QFont
@@ -165,6 +165,18 @@ class GlowOrb(QWidget):
             }
         """)
         self.input_box.returnPressed.connect(self._on_text_entered)
+        
+        # Status Label (above input box)
+        self.status_label = QLabel(self)
+        self.status_label.setGeometry(20, self.orb_size - 40, self.orb_size - 40, 30)
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        self.status_label.setStyleSheet("""
+            color: rgba(255, 255, 255, 200);
+            background-color: transparent;
+            text-shadow: 1px 1px 2px rgba(0,0,0,150);
+        """)
+        self.status_label.setText("")
 
     def _on_text_entered(self):
         """Handle text input"""
@@ -174,9 +186,10 @@ class GlowOrb(QWidget):
             self.input_box.clear()
 
     def set_status_text(self, text):
-        """Set status text (placeholder for future status label)"""
-        _ = text  # Placeholder
-        pass
+        """Set status text in the orb UI"""
+        self.status_label.setText(text)
+        # Force redraw
+        self.update()
 
     def advance(self):
         """Advance animation"""
