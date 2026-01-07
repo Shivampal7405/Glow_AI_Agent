@@ -21,7 +21,8 @@ class WakeWordDetector:
             sample_rate: Audio sample rate in Hz
         """
         self.wake_word = wake_word
-        self.threshold = threshold
+        self.threshold = threshold                  
+        
         self.sample_rate = sample_rate
         self.is_running = False
         self.detection_queue = queue.Queue()

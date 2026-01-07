@@ -117,6 +117,27 @@ class GlowOrb(QWidget):
             }
         """)
         self.close_btn.clicked.connect(self.close_clicked.emit)
+        
+        # Microphone button (bottom-right of orb)
+        self.mic_btn = QPushButton("🎤", self)
+        self.mic_btn.setGeometry(self.orb_size - 45, self.orb_size - 45, 35, 35)
+        self.mic_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.mic_btn.setFont(QFont("Segoe UI", 16))
+        self.mic_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(0, 0, 0, 120);
+                color: white;
+                border: 2px solid rgba(46, 204, 113, 100);
+                border-radius: 17px;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: rgba(46, 204, 113, 180);
+                border: 2px solid rgba(88, 230, 150, 180);
+            }
+        """)
+        self.mic_btn.clicked.connect(self.voice_toggled.emit)
 
         # Input box at bottom with aesthetic font and styling
         self.input_box = QLineEdit(self)

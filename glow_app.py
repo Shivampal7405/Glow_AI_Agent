@@ -35,6 +35,41 @@ class CommandWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
+class VoiceWorker(QThread):
+    """Worker thread for voice recording and transcription"""
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(self, transcriber):
+        super().__init__()
+        self.transcriber = transcriber
+
+    def run(self):
+        try:
+            # Record and transcribe (blocks until silence or timeout)
+            text = self.transcriber.listen_and_transcribe(max_duration=30)
+            if text:
+                self.finished.emit(text)
+            else:
+                self.error.emit("No voice detected")
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class SpeakWorker(QThread):
+    """Worker thread for text-to-speech"""
+    finished = pyqtSignal()
+
+    def __init__(self, tts, text):
+        super().__init__()
+        self.tts = tts
+        self.text = text
+
+    def run(self):
+        if self.tts:
+            self.tts.speak(self.text, wait=True)
+        self.finished.emit()
+
 
 class GlowApp(QMainWindow):
     """GLOW Desktop Application - General Local Offline Windows-agent"""
@@ -144,6 +179,28 @@ class GlowApp(QMainWindow):
         except Exception as e:
             print(f"Orb not available: {e}")
             self.orb = None
+
+        # Initialize voice components
+        self.tts = None
+        self.transcriber = None
+
+        try:
+            from mouth.tts_engine import TTSEngine
+            self.tts = TTSEngine()
+            print("TTS engine initialized")
+        except Exception as e:
+            print(f"TTS not available: {e}")
+
+        try:
+            from ears.transcriber import Transcriber
+            # Use small/base for speed in GUI
+            self.transcriber = Transcriber(model_size="base", compute_type="int8")
+            print("Transcriber initialized")
+        except Exception as e:
+            print(f"Transcriber not available: {e}")
+
+        # Voice worker
+        self.voice_worker = None
 
         print("GLOW ready!")
 
@@ -394,15 +451,49 @@ class GlowApp(QMainWindow):
 
     def toggle_voice_input(self):
         """Toggle voice input mode"""
+        if not self.orb:
+            return
+
+        if self.orb.current_state == "listening":
+            # If already listening, stop it
+            if self.voice_worker and self.voice_worker.isRunning():
+                if self.transcriber:
+                    self.transcriber.stop_recording()
+            return
+
+        if not self.transcriber:
+            self.append_message("ERROR", "Voice input (STT) is not available.")
+            return
+
+        # Start voice input
+        self.orb.set_state_listening()
+        self.orb.set_status_text("Listening...")
+        self.append_message("System", "Voice mode activated - Speak now")
+
+        self.voice_worker = VoiceWorker(self.transcriber)
+        self.voice_worker.finished.connect(self.on_voice_heard)
+        self.voice_worker.error.connect(self.on_voice_error)
+        self.voice_worker.start()
+
+    def on_voice_heard(self, text):
+        """Handle transcribed voice input"""
         if self.orb:
-            if self.orb.current_state == "listening":
-                self.orb.set_state_idle()
-                self.orb.set_status_text("")
-                self.append_message("System", "Voice mode deactivated")
-            else:
-                self.orb.set_state_listening()
-                self.orb.set_status_text("Listening...")
-                self.append_message("System", "Voice mode activated (Simulation)")
+            self.orb.set_state_idle()
+            self.orb.set_status_text(f"Heard: {text}")
+        
+        # Process as a regular command
+        self.process_command(text)
+
+    def on_voice_error(self, error):
+        """Handle voice recording/transcription error"""
+        if self.orb:
+            self.orb.set_state_idle()
+            self.orb.set_status_text("")
+        
+        if "No voice detected" not in error:
+            self.append_message("ERROR", f"Voice Error: {error}")
+        else:
+            self.append_message("System", "No voice detected")
 
     def on_command_finished(self, response):
         """Handle command completion"""
@@ -413,6 +504,14 @@ class GlowApp(QMainWindow):
         if self.orb:
             snippet = response[:100] + "..." if len(response) > 100 else response
             self.orb.set_status_text(snippet)
+            self.orb.set_state_speaking()
+
+        # Speak response if TTS available
+        if self.tts:
+            self.speak_worker = SpeakWorker(self.tts, response)
+            self.speak_worker.finished.connect(lambda: self.orb.set_state_idle() if self.orb else None)
+            self.speak_worker.start()
+        elif self.orb:
             self.orb.set_state_idle()
 
         # Re-enable input
