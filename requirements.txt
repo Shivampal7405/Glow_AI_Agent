@@ -1,0 +1,52 @@
+# Core AI/ML Dependencies
+langgraph>=0.0.40
+langchain>=0.1.0
+langchain-community>=0.0.20
+
+# LLM Client
+ollama>=0.1.0
+
+# AI API Clients (for Conversational Models)
+google-generativeai>=0.3.0  # Gemini
+anthropic>=0.75.0           # Claude
+groq>=1.0.0                 # Groq
+
+# Speech Recognition
+openwakeword>=0.5.0
+faster-whisper>=0.10.0
+pyaudio>=0.2.13
+sounddevice>=0.4.6
+
+# Text-to-Speech
+piper-tts>=1.2.0
+
+# UI Framework
+PyQt6>=6.6.0
+PyQt6-Qt6>=6.6.0
+PyQt6-WebEngine>=6.6.0
+
+# Browser Automation
+playwright>=1.40.0
+selenium>=4.15.0
+
+# Windows Automation
+pywin32>=306
+pyautogui>=0.9.54
+psutil>=5.9.0
+pycaw>=20231129  # Audio control
+comtypes>=1.2.0  # COM interfaces
+pillow>=10.0.0   # Image operations
+pygetwindow>=0.0.9  # Window management
+opencv-python>=4.8.0  # Computer vision
+pytesseract>=0.3.10  # OCR (optional)
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+requests>=2.31.0
+winshell>=0.6  # Recycle bin management
+python-docx>=0.8.11  # Word document creation
+
+# Optional Dependencies for Enhanced Features
+# pytesseract requires Tesseract-OCR to be installed separately
+# Install from: https://github.com/tesseract-ocr/tesseract

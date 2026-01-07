@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+nul
+
+# Models (large files) - users should download separately
+*.bin
+*.pth
+*.pt
+*.onnx
+
+# Audio/Video
+*.wav
+*.mp3
+*.mp4
+
+# Temporary
+tmp/
+temp/
+*.tmp
+
+# Secrets
+.env
+config.json
+config.local.py
+secrets.json
+
+# Note: ChromeDriver and Piper executables are kept in the project
+# Users should place them in the root directory for easy setup
+
+# Pytest
+.pytest_cache/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
