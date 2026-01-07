@@ -28,7 +28,10 @@ class WakeWordDetector:
         self.detection_queue = queue.Queue()
 
         # Initialize the wake word model
-        self.model = Model(wakeword_models=[wake_word])
+        self.model = Model(
+            wakeword_models=[wake_word],
+            inference_framework="onnx"
+        )
 
         # Audio buffer settings
         self.chunk_size = 1280  # 80ms at 16kHz

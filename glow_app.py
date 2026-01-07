@@ -71,6 +71,33 @@ class SpeakWorker(QThread):
         self.finished.emit()
 
 
+class WakeWordWorker(QThread):
+    """Worker thread for background wake word detection"""
+    detected = pyqtSignal()
+
+    def __init__(self, detector):
+        super().__init__()
+        self.detector = detector
+        self.running = True
+
+    def run(self):
+        if not self.detector:
+            return
+            
+        self.detector.start()
+        while self.running:
+            detection = self.detector.wait_for_wake_word(timeout=0.5)
+            if detection:
+                self.detected.emit()
+                # Stop after discovery to avoid mic conflict with STT
+                break 
+
+    def stop(self):
+        self.running = False
+        if self.detector:
+            self.detector.stop()
+
+
 class GlowApp(QMainWindow):
     """GLOW Desktop Application - General Local Offline Windows-agent"""
 
@@ -180,9 +207,10 @@ class GlowApp(QMainWindow):
             print(f"Orb not available: {e}")
             self.orb = None
 
-        # Initialize voice components
+        # Voice components
         self.tts = None
         self.transcriber = None
+        self.wake_detector = None
 
         try:
             from mouth.tts_engine import TTSEngine
@@ -193,14 +221,25 @@ class GlowApp(QMainWindow):
 
         try:
             from ears.transcriber import Transcriber
-            # Use small/base for speed in GUI
             self.transcriber = Transcriber(model_size="base", compute_type="int8")
             print("Transcriber initialized")
         except Exception as e:
             print(f"Transcriber not available: {e}")
 
-        # Voice worker
+        # Wake Word Detection
+        if self.config.get('wake_word_enabled', False):
+            try:
+                from ears.wake_word import WakeWordDetector
+                self.wake_detector = WakeWordDetector()
+                self._start_wake_word_worker()
+                print("Wake word detector initialized")
+            except Exception as e:
+                print(f"Wake word not available: {e}")
+
+        # Worker threads
         self.voice_worker = None
+        self.speak_worker = None
+        self.wake_worker = None
 
         print("GLOW ready!")
 
@@ -461,6 +500,11 @@ class GlowApp(QMainWindow):
                     self.transcriber.stop_recording()
             return
 
+        # Stop wake word detection while STT is active
+        if self.wake_worker and self.wake_worker.isRunning():
+            self.wake_worker.stop()
+            self.wake_worker.wait()
+
         if not self.transcriber:
             self.append_message("ERROR", "Voice input (STT) is not available.")
             return
@@ -494,6 +538,23 @@ class GlowApp(QMainWindow):
             self.append_message("ERROR", f"Voice Error: {error}")
         else:
             self.append_message("System", "No voice detected")
+            
+        # Restart wake Word listening
+        self._start_wake_word_worker()
+
+    def _start_wake_word_worker(self):
+        """Start background wake word listening"""
+        if self.wake_detector and not (self.wake_worker and self.wake_worker.isRunning()):
+            self.wake_worker = WakeWordWorker(self.wake_detector)
+            self.wake_worker.detected.connect(self.on_wake_word_detected)
+            self.wake_worker.start()
+
+    def on_wake_word_detected(self):
+        """Handle wake word discovery"""
+        print("GUI: Wake word detected!")
+        # Trigger voice input
+        if self.orb and self.orb.current_state == "idle":
+            self.toggle_voice_input()
 
     def on_command_finished(self, response):
         """Handle command completion"""
@@ -509,10 +570,11 @@ class GlowApp(QMainWindow):
         # Speak response if TTS available
         if self.tts:
             self.speak_worker = SpeakWorker(self.tts, response)
-            self.speak_worker.finished.connect(lambda: self.orb.set_state_idle() if self.orb else None)
+            self.speak_worker.finished.connect(self._on_speech_done)
             self.speak_worker.start()
         elif self.orb:
             self.orb.set_state_idle()
+            self._start_wake_word_worker()
 
         # Re-enable input
         self.input_field.setEnabled(True)
@@ -535,6 +597,15 @@ class GlowApp(QMainWindow):
         if self.orb:
             self.orb.set_state_error()
             self.orb.set_status_text(f"Error: {error}")
+            
+        # Restart wake Word listening
+        self._start_wake_word_worker()
+
+    def _on_speech_done(self):
+        """Handle TTS completion"""
+        if self.orb:
+            self.orb.set_state_idle()
+        self._start_wake_word_worker()
 
     def show_status(self):
         """Show system status"""
