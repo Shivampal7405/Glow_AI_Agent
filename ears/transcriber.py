@@ -18,7 +18,7 @@ class Transcriber:
         compute_type="int8",
         sample_rate=16000,
         silence_threshold=0.01,
-        silence_duration=1.5
+        silence_duration=0.4
     ):
         """
         Initialize the transcriber
@@ -52,49 +52,61 @@ class Transcriber:
             print(f"Audio status: {status}")
         self.audio_queue.put(indata.copy())
 
-    def record_audio(self, max_duration=30):
+    def record_audio(self, max_duration=120):
         """
-        Record audio until silence is detected or max duration reached
+        Record audio until silence is detected
 
         Args:
-            max_duration: Maximum recording duration in seconds
+            max_duration: Safety hard limit in seconds (default: 120s)
 
         Returns:
             Recorded audio as numpy array
         """
+        import time  # Import locally to avoid top-level clutter if preferred, or move to top
+
         print("Recording... (speak now)")
         self.is_recording = True
         self.audio_queue = queue.Queue()
 
         audio_data = []
-        silence_chunks = 0
-        silence_chunks_needed = int(self.silence_duration * self.sample_rate / 1024)
+
+        # Deepgram-style logic: time-based tracking
+        last_speech_time = time.time()
+        start_time = time.time()
+        
+        # Hard safety limit
+        MAX_HARD_LIMIT = max_duration
 
         with sd.InputStream(
             samplerate=self.sample_rate,
             channels=1,
             dtype=np.float32,
-            blocksize=1024,
+            blocksize=512,
             callback=self.audio_callback
         ):
-            total_chunks = 0
-            max_chunks = int(max_duration * self.sample_rate / 1024)
-
-            while self.is_recording and total_chunks < max_chunks:
+            while self.is_recording:
                 try:
+                    # Get audio chunk
                     chunk = self.audio_queue.get(timeout=0.1)
                     audio_data.append(chunk)
-                    total_chunks += 1
 
-                    # Check for silence
+                    # Calculate RMS energy
                     rms = np.sqrt(np.mean(chunk**2))
-                    if rms < self.silence_threshold:
-                        silence_chunks += 1
-                        if silence_chunks >= silence_chunks_needed:
-                            print("Silence detected, stopping recording")
-                            break
+
+                    # VAD Logic
+                    if rms > self.silence_threshold:
+                        # Speech detected - reset timer
+                        last_speech_time = time.time()
                     else:
-                        silence_chunks = 0
+                        # Silence - check duration
+                        if time.time() - last_speech_time > self.silence_duration:
+                            print(f"End of speech detected (Silence > {self.silence_duration}s)")
+                            break
+
+                    # Safety Guard
+                    if time.time() - start_time > MAX_HARD_LIMIT:
+                        print(f"Hard stop reached ({MAX_HARD_LIMIT}s limit)")
+                        break
 
                 except queue.Empty:
                     continue
@@ -128,9 +140,11 @@ class Transcriber:
         # Run transcription
         segments, info = self.model.transcribe(
             audio_data,
-            beam_size=5,
+            beam_size=1,
             language="en",
-            task="transcribe"
+            task="transcribe",
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=300)
         )
 
         # Combine all segments
